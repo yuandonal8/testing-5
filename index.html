@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SENTINEL-IOT | Emergency Monitoring Station</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card: #131b2e;
+      --border: #24304d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --safe: #10b981;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --police: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      line-height: 1.5;
+    }
+
+    .container { max-width: 680px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+      margin-bottom: 20px;
+    }
+
+    header h1 { font-size: 1.15rem; letter-spacing: 0.05em; }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--safe);
+      border: 1px solid var(--safe);
+    }
+
+    .badge.active-911 {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .badge.active-police {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--police);
+      border-color: var(--police);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat-box {
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .stat-label { font-size: 0.75rem; color: var(--muted); }
+    .stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 2px; }
+
+    .coords {
+      font-family: monospace;
+      font-size: 0.95rem;
+      background: rgba(11, 15, 25, 0.6);
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      display: inline-block;
+      width: 100%;
+      text-align: center;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .btn:active { opacity: 0.8; }
+    .btn-maps { background: var(--safe); color: #052e16; }
+    .btn-maps.disabled { background: #1e293b; color: var(--muted); pointer-events: none; }
+    .btn-911 { background: var(--danger); color: #fff; }
+    .btn-police { background: var(--police); color: #fff; }
+    .btn-reset { background: transparent; border: 1px solid var(--border); color: var(--muted); margin-top: 10px; }
+
+    .log {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      background: #070a12;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SENTINEL-IOT STATION</h1>
+      <span id="status-badge" class="badge">STANDBY</span>
+    </header>
+
+    <!-- INCOMING TELEMETRY & GPS -->
+    <div class="card">
+      <h2>Live Telemetry & Clicker Location</h2>
+      <div class="grid" style="margin-bottom: 12px;">
+        <div class="stat-box">
+          <div class="stat-label">HEART RATE (PPG)</div>
+          <div class="stat-value"><span id="hr-val">--</span> <small style="font-size:0.8rem;color:var(--muted)">BPM</small></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">BLOOD OXYGEN</div>
+          <div class="stat-value"><span id="spo2-val">--</span> <small style="font-size:0.8rem;color:var(--muted)">%</small></div>
+        </div>
+      </div>
+
+      <div class="coords" id="coords-box">GPS Coordinates: Waiting for GSM/LoRa link...</div>
+      <a id="maps-btn" class="btn btn-maps disabled" href="#" target="_blank" rel="noopener">Open Pin in Google Maps</a>
+    </div>
+
+    <!-- TEST / MANUAL TRIGGER -->
+    <div class="card">
+      <h2>Simulate / Generate Tracking Link</h2>
+      <div class="grid">
+        <button class="btn btn-911" onclick="triggerTestLink('911')">1x Press (911 Alert)</button>
+        <button class="btn btn-police" onclick="triggerTestLink('POLICE')">2x Press (Police)</button>
+      </div>
+      <button class="btn btn-reset" onclick="resetDashboard()">Reset to Standby</button>
+    </div>
+
+    <!-- PAYLOAD INSPECTOR -->
+    <div class="card">
+      <h2>Active Link Payload</h2>
+      <div class="log" id="url-log">No incoming parameters detected.</div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_URL = "https://yuandonal8.github.io/testing1/";
+
+    function applyTelemetry(data) {
+      const badge = document.getElementById("status-badge");
+      const hrEl = document.getElementById("hr-val");
+      const spo2El = document.getElementById("spo2-val");
+      const coordsEl = document.getElementById("coords-box");
+      const mapsBtn = document.getElementById("maps-btn");
+      const logEl = document.getElementById("url-log");
+
+      if (data.alert) {
+        const type = data.alert.toUpperCase();
+        badge.textContent = `ACTIVE ALERT: ${type}`;
+        badge.className = type === "POLICE" ? "badge active-police" : "badge active-911";
+      }
+
+      if (data.hr) hrEl.textContent = data.hr;
+      if (data.spo2) spo2El.textContent = data.spo2;
+
+      if (data.lat && data.lng) {
+        coordsEl.textContent = `GPS Coordinates: ${data.lat}, ${data.lng}`;
+        mapsBtn.href = `https://maps.google.com/?q=${encodeURIComponent(data.lat)},${encodeURIComponent(data.lng)}`;
+        mapsBtn.classList.remove("disabled");
+      }
+
+      logEl.textContent = window.location.href;
+    }
+
+    // Read parameters when opened from an SMS link
+    window.addEventListener("DOMContentLoaded", () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("lat") || params.has("alert")) {
+        applyTelemetry({
+          alert: params.get("alert") || "EMERGENCY",
+          hr: params.get("hr") || "115",
+          spo2: params.get("spo2") || "98",
+          lat: params.get("lat"),
+          lng: params.get("lng")
+        });
+      }
+    });
+
+    // Simulate button press & share/copy the generated link
+    function triggerTestLink(alertType) {
+      const sampleLat = "15.145000";
+      const sampleLng = "120.588700";
+      const sampleHr = alertType === "911" ? "128" : "104";
+      const sampleSpo2 = "97";
+
+      const generatedUrl = `${BASE_URL}?alert=${alertType}&hr=${sampleHr}&spo2=${sampleSpo2}&lat=${sampleLat}&lng=${sampleLng}`;
+
+      // Update current screen preview
+      window.history.replaceState({}, "", `?alert=${alertType}&hr=${sampleHr}&spo2=${sampleSpo2}&lat=${sampleLat}&lng=${sampleLng}`);
+      applyTelemetry({ alert: alertType, hr: sampleHr, spo2: sampleSpo2, lat: sampleLat, lng: sampleLng });
+
+      if (navigator.share) {
+        navigator.share({
+          title: `SENTINEL-IOT ${alertType} Alert`,
+          text: `Emergency (${alertType})! Clicker live GPS & vitals:`,
+          url: generatedUrl
+        }).catch(() => {});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(generatedUrl);
+      }
+    }
+
+    function resetDashboard() {
+      window.history.replaceState({}, "", window.location.pathname);
+      document.getElementById("status-badge").textContent = "STANDBY";
+      document.getElementById("status-badge").className = "badge";
+      document.getElementById("hr-val").textContent = "--";
+      document.getElementById("spo2-val").textContent = "--";
+      document.getElementById("coords-box").textContent = "GPS Coordinates: Waiting for GSM/LoRa link...";
+      const mapsBtn = document.getElementById("maps-btn");
+      mapsBtn.href = "#";
+      mapsBtn.classList.add("disabled");
+      document.getElementById("url-log").textContent = "No incoming parameters detected.";
+    }
+  </script>
+</body>
+</html>
